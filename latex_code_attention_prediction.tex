@@ -1,0 +1,495 @@
+\documentclass[conference]{IEEEtran}
+
+% ── Packages ──────────────────────────────────────────────────────────────────
+\IEEEoverridecommandlockouts
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{url}
+\usepackage{balance}
+\usepackage{hyperref}
+\hypersetup{colorlinks=false}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+% =============================================================================
+\begin{document}
+
+\title{An AI-Based Attention Prediction Framework for Online Learning
+Environments}
+
+\author{
+\IEEEauthorblockN{Aman Raj Ojha}
+\IEEEauthorblockA{
+AIT – CSE\\
+Chandigarh University\\
+Mohali, Punjab, India\\
+ojhaaman765@gmail.com}
+\and
+\IEEEauthorblockN{Raghav Mehra}
+\IEEEauthorblockA{
+AIT – CSE\\
+Chandigarh University\\
+Mohali, Punjab, India\\
+raghav.mehrain@gmail.com}
+\and
+\IEEEauthorblockN{Diwansh Bakshi}
+\IEEEauthorblockA{
+AIT – CSE\\
+Chandigarh University\\
+Mohali, Punjab, India\\
+diwanshbakshi2174@gmail.com}
+\and
+\IEEEauthorblockN{Mohd Rehan Khan}
+\IEEEauthorblockA{
+AIT – CSE\\
+Chandigarh University\\
+Mohali, Punjab, India\\
+mrehankhan1208@gmail.com}
+}
+\maketitle
+
+% =============================================================================
+\begin{abstract}
+Learning works best when students stay attentive, but in online classes, teachers usually cannot see whether students are genuinely focused. When handled correctly, interaction data can serve as a trustworthy and dependable indicator of cognitive engagement. The Open University Learning Analytics Dataset (OULAD), which includes 32,593 student registrations for 22 course modules, serves as the foundation for the thorough, end-to-end AI-based attention prediction framework proposed in this paper. We operationalize learner attention as a dual-threshold construct that is jointly dependent on VLE interaction volume and engagement consistency, based on Posner's neurocognitive theory of attention and Self-Determination Theory (SDT). Ten behavioral and demographic features, including four new composite indices (\texttt{engagement\_score}, \texttt{click\_per\_day}), \texttt{study\_efficiency}, \texttt{activity\_balance}), are engineered. Four classifiers—Logistic Regression (LR), Random Forest (RF), XGBoost, and a Majority-Voting Ensemble—are systematically evaluated. Experiments show that XGBoost has achieved the highest AUC of 0.931, with exact test-set accuracy of 82.72\%, 85.72\%, 85.75\%, and 85.69\%, respectively. Theoretically, sustained, distributed engagement is more important than raw activity volume, as confirmed by feature-importance analysis, which finds \texttt{engagement\_score} to be the dominant predictor (gain = 0.241). The framework helps teachers spot students who are losing focus and gives them practical guidance to support those students in time and teachers can see or track progress of students.
+\end{abstract}
+
+\begin{IEEEkeywords}
+attention prediction, learning analytics, random forest, XGBoost, ensemble
+learning, feature engineering, OULAD, adaptive education, self-determination
+theory, e-learning
+\end{IEEEkeywords}
+
+% =============================================================================
+\section{Introduction}
+\label{sec:intro}
+
+At its core, education is paying attention. It doesn't matter if a student is in a lecture hall or on a distance-learning portal; the amount of time and depth of focused cognitive engagement determines how much is retained, transferred, and applied~\cite{ref_attention_theory}. In regular classrooms, experienced teachers are always aware of what is going on in the room.They can tell who looks at their phone, who stops taking notes, and whose eyes stray. Teachers are able to adapt the pace and style of their lessons on the spot thanks to these small observations. In online environments, this feedback loop is totally disrupted.
+
+The COVID-19 pandemic, which forced more than 1.5 billion students to move to remote settings almost overnight, has made the problem of attention even worse. More than 90\% of people who sign up for Massive Open Online Courses (MOOCs) drop out~\cite{ref_mooc_dropout}.Even in well-organized distance learning programs, a lot of students who sign up drop out without telling anyone, and the teacher doesn't find out until much later. It's hard and costly to catch up by the time midterm grades show how far behind they are.
+
+However, data is available in online settings. Every time a user logs in, views a page, pauses a video, or completes a quiz, the LMS records it. For every OULAD student, there are hundreds of interaction events in each module. For an entire group, this amounts to tens of millions of timestamped records. The challenge is turning this raw behavioral data into signals that educators and adaptive systems can use to make decisions.
+That challenge is directly addressed in this paper. We claim that the spatial and temporal patterns of VLE interaction accurately reflect learner attention, even though it is cognitively unobservable, and that ensemble machine learning techniques can successfully decode these patterns for real-world use. Posner and Petersen's neurocognitive model of attention~\cite{ref_attention_theory} identifies three separate attention networks: alerting, orienting, and executive control. These three networks form the foundation of our framework. Furthermore, Deci and Ryan's Self-Determination Theory (SDT)~\cite{ref_sdt} views engagement as the result of three basic psychological needs: relatedness, competence, and autonomy, all of which have measurable effects on LMS logs.
+
+The main contributions of this paper are as:
+\begin{enumerate}
+\item Inspired by neurocognitive and motivational theory, a theoretically supported operationalization of learner attention as a dual-threshold construct requiring both elevated interaction volume and consistent engagement.
+\itemA principled feature-engineering pipeline that transforms raw OULAD signals into ten comprehensible predictors, four of which are new composite interaction features based on particular theoretical concepts.
+\itemExact experimental accuracy and AUC values are compared to the original notebook outputs in a rigorous comparison of four classifiers using the same preprocessing steps.
+\item identifying the optimal predictor as \texttt{engagement\_score} and developing a theoretical explanation for why it outperforms raw activity counts.
+\item ready-to-use recommendations for integrating the framework into adaptive LMS dashboards to enable early, individualized, and morally sound intervention.
+\end{enumerate}
+
+% =============================================================================
+
+\section{Related Work}
+\label{sec:related}
+
+\subsection{Learning Analytics and Student Modelling}
+
+Learning analytics has produced rich methods for student modeling and performance forecasting since it was formalized at the 2011 LAK Conference~\cite{ref_la_survey}. Most early studies had mediocre results when using coarse demographic predictors like gender, prior education, and socioeconomic status. The center of gravity of the field has firmly moved in the direction of fine-grained clickstream features. Agudo-Peregrina et al.~\cite{ref_lms_attention} showed that the predictive power of VLE interaction types (content access, communication, and assessment) varies significantly, with content access frequency and assessment submission patterns emerging as the best predictors of academic success. These results are directly reflected in the features we chose.
+
+\subsection{Attention and Engagement Detection in Online Settings}
+Two essentially parallel paths have been taken in the development of attention detection: \textit{Sensor-based approaches}~\cite{ref_gaze} use wearable biosensors, webcam gaze estimation, or facial action unit analysis to infer physiological states associated with attention. These achieve high temporal resolution but fail for audio-only learners, a significant demographic in low-resource contexts, and come with high privacy costs and specialized hardware requirements.
+\LMS Interaction records are handled as indirect but scalable attention proxies by \textit{Log-based approaches}. With an ensemble prediction stage that increases robustness for production deployment and a theoretically motivated feature set, our work firmly establishes itself within this paradigm, building upon earlier log-based models.
+\section{Dataset and Problem Formulation}
+\label{sec:data}
+
+\subsection{Open University Learning Analytics Dataset}
+
+The research community has access to open educational datasets. published by Open University UK in 2017 and includes 32,593 student registrations for 22 undergraduate courses taught from February 2013 to October 2014. The dataset has been fully anonymized and approved for use in research. Table~\ref{tab:data} contains the four descriptions of the metagraph and variables used in this investigation. The aggregation of interaction volumes and dispersion features such as \texttt{active\_days} were required for the 10,655,280 rows of individual activity records for each timestamped to a single day-dependent time granularity in the \texttt{studentVle} table.
+
+\begin{table}[htbp]
+\centering
+\caption{OULAD Tables Used in This Study}
+\label{tab:data}
+\begin{tabular}{>{\ttfamily}lcc}
+\toprule
+\normalfont\textbf{Table} & \textbf{Key Variables} & \textbf{Records} \\
+\midrule
+studentInfo       & Demographics, final result, disability & 32,593  \\
+studentVle        & Activity type, date, click count       & 10.66M  \\
+assessments       & Type, weight, due date                 & 206     \\
+studentAssessment & Score, submission date, is-banked      & 173,912 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Operationalising Learner Attention}
+\label{sec:label}
+
+It takes careful theoretical justification to operationalize a latent psychological construct as a supervised learning target. Based on SDT's autonomy-competence framework and Posner's alerting-orienting-executive model, we define high learner attention as necessitating two concurrent conditions:
+Above-median interaction \textit{volume}, which indicates alerting and orienting engagement; and above-median interaction \textit{consistency}, which indicates autonomous motivation and executive control. The binary attention label $y_i \in \{0, 1\}$ is:
+
+\begin{equation}
+y_i = \mathbb{1}\!\left[\texttt{sum\_click}_i > \tilde{c}
+      \;\wedge\;
+      \texttt{active\_days}_i > \tilde{d}\right]
+\label{eq:label}
+\end{equation}
+
+where $\tilde{c}$ and $\tilde{d}$ are sample medians of the total number of clicks and active days, respectively. According to the neurocognitive theory in Section~\ref{sec:intro}, a student who generates a large number of clicks in a single session has high volume but low consistency, and is therefore classified as low-attention. The dual-threshold design prevents labeling deadline-driven crammers as attentive. The resulting class distribution is nearly balanced, requiring no artificial oversampling, with 54.7\% low-attention ($n = 17{,}832$) and 45.3\% high-attention ($n = 14{,}761$).
+
+% =============================================================================
+\section{Methodology}
+\label{sec:method}
+
+\subsection{System Architecture}
+
+The end-to-end pipeline (Fig. \ref{fig:arch}) goes through six steps: getting raw data from OULAD tables; building the ten-dimensional predictor space through feature engineering; building labels using Eq. \ref{eq:label}; preprocessing (imputation, scaling, stratified splitting); training the model with hyperparameter tuning; and making adaptive output for deployment.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\columnwidth]{figs/fig1_architecture.png}
+\caption{The proposed AI-based attention prediction framework's end-to-end architecture, from raw OULAD interaction logs to adaptive teaching signals.}
+\label{fig:arch}
+\end{figure}
+
+\subsection{Feature Engineering}
+\label{sec:features}
+
+\subsubsection{Raw Interaction Features}
+
+We get six raw features directly from the OULAD tables: \texttt{sum\_click} (total VLE click events; orienting engagement proxy); \texttt{active\_days} (distinct calendar days with VLE activity; alerting network proxy); \texttt{assessment\_count} (assessments attempted; executive control proxy); \texttt{submission\_delay} (mean days between submission and due date; negative = early; SDT external regulation proxy); \texttt{num\_of\_prev\_attempts} (prior module attempts; baseline competence proxy); and \texttt{studied\_credits} (concurrent credit load; cognitive resource competition proxy).
+
+
+
+\subsection{Preprocessing Pipeline}
+
+Raw data contains missing values: 6.96\% in \texttt{sum\_click} (no VLE
+record) and 14.36\% in assessment-based features (no submission). We apply
+median imputation (\texttt{SimpleImputer}), chosen over mean imputation
+because click and score distributions are right-skewed. Features are
+standardised with \texttt{StandardScaler} ($\mu=0$, $\sigma=1$) before
+Logistic Regression; tree-based models receive raw imputed values, as
+they are scale-invariant. The dataset is split 75\% train (24,444) / 25\%
+test (8,149) using stratified sampling (\texttt{random\_state=42}).
+
+\subsection{Classifier Configurations}
+
+\subsubsection{Logistic Regression}
+
+LR minimises binary cross-entropy with L2 regularisation:
+\begin{equation}
+\mathcal{L}_{\text{LR}}(\mathbf{w}) =
+  \frac{1}{n}\!\sum_{i=1}^{n}\!\text{BCE}(y_i, \hat{y}_i)
+  + \frac{1}{2C}\|\mathbf{w}\|_2^2, \quad C=3.0
+\label{eq:lr}
+\end{equation}
+Consistent LR underperformance quantifies non-linearity in the attention
+signal. Parameters: \texttt{class\_weight=`balanced'}, \texttt{max\_iter=}8000.
+
+\subsubsection{Random Forest}
+
+RF aggregates $T = 350$ bootstrap-trained decision trees:
+\begin{equation}
+\hat{y}_{\text{RF}} = \underset{c \in \{0,1\}}{\text{mode}}
+  \left\{ h_t(\mathbf{x}) \right\}_{t=1}^{T}
+\label{eq:rf}
+\end{equation}
+Bagging with random feature subsets ($\lfloor\sqrt{p}\rfloor$ per node)
+decorrelates trees, reducing variance. Feature importance (mean impurity
+decrease) produces interpretable rankings. Parameters:
+\texttt{max\_depth=12}, \texttt{min\_samples\_split=8},
+\texttt{min\_samples\_leaf=3}, \texttt{max\_features=0.8},
+\texttt{class\_weight=`balanced'}.
+
+\subsubsection{XGBoost}
+
+XGBoost iteratively adds trees $f_t$ minimising a regularised
+second-order Taylor approximation of the loss:
+\begin{equation}
+\mathcal{L}^{(t)} =
+  \sum_{i}\!\left[g_i f_t(\mathbf{x}_i)
+    + \tfrac{1}{2}h_i f_t^2(\mathbf{x}_i)\right]
+  + \alpha\|w\|_1 + \tfrac{\lambda}{2}\|w\|_2^2
+\label{eq:xgb}
+\end{equation}
+where $g_i, h_i$ are first/second partial derivatives of the loss.
+\texttt{scale\_pos\_weight} is set from the class ratio. Parameters:
+$T=350$, \texttt{max\_depth=6}, $\eta=0.05$, \texttt{subsample=0.85},
+\texttt{colsample\_bytree=0.85}, $\alpha=1$, $\lambda=3$, $\gamma=0.3$.
+
+\subsubsection{Majority-Voting Ensemble}
+
+\begin{equation}
+\hat{y}_{\text{ens}} =
+  \mathbb{1}\!\left[\hat{y}_{\text{LR}} + \hat{y}_{\text{RF}}
+    + \hat{y}_{\text{XGB}} \geq 2\right]
+\label{eq:ens}
+\end{equation}
+Before giving a high-attention label, at least two of the three classifiers must agree. This lowers the variance of each classifier while keeping sensitivity, and it is easy for non-experts like academic administrators to understand.
+(Fig.~\ref{fig:ensemble}).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\columnwidth]{figs/fig10_ensemble.png}
+\caption{Majority-voting ensemble: each base model makes an independent prediction of 0 or 1, and the final label is based on the majority ($\geq2$ of 3).}
+\label{fig:ensemble}
+\end{figure}
+
+% =============================================================================
+\section{Experimental Results}
+\label{sec:results}
+
+\subsection{Class Distribution and Temporal Engagement}
+
+Fig.~\ref{fig:dist} confirms the near-balanced class distribution as shown. Fig.~\ref{fig:trend}
+shows three stages of temporal engagement: a mid-module trough in weeks 4–8, an initial honeymoon of high activity in the first two weeks, and assessment-driven spikes in line with deadlines (red dashed lines). This pattern suggests that trajectory differences between students with high and low attention levels can be identified from the first six weeks of data, allowing for early intervention well in advance of any summative evaluation.
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\columnwidth]{figs/fig5_distribution.png}
+\caption{Distribution of attention labels. The split of 54.7\%/45.3\% indicates that the dual-threshold labelling results in a dataset that is almost balanced.}
+\label{fig:dist}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\columnwidth]{figs/fig9_engagement_trend.png}
+\caption{total clicks on the VLE for the entire academic module. There are three distinct stages of engagement: the mid-module trough (weeks 4–8), the honeymoon (weeks 1–2), and the deadline-driven spikes (red dashed lines).}
+\label{fig:trend}
+\end{figure}
+
+\subsection{Feature Correlation Analysis}
+
+Fig.~\ref{fig:heatmap} First, \texttt{engagement\_score} shows the strongest correlation ($r = 0.64$) with the attention label, surpassing both of its constituent parts (\texttt{sum\_click} ($r = 0.61$); \texttt{active\_days} ($r = 0.57$))—providing direct empirical support for the theoretical claim that attention is a multiplicative function of volume and consistency. 
+
+Second, \texttt{submission\_delay} exhibits the anticipated negative association ($r = -0.28$), consistent with SDT's hypothesis that learners who are externally regulated submit late and disengage between deadlines. 
+
+Third, strong inter-composite correlations show that tree-based feature selection successfully manages redundancy (e.g., \texttt{engagement\_score} and \texttt{click\_per\_day} ($r = 0.87$)).
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\columnwidth]{figs/fig6_heatmap.png}
+\caption{Pearson correlation heatmap: \texttt{engagement\_score} ($r=0.64$) is the attention label's strongest correlate, while \texttt{submission\_delay} ($r=-0.28$) represents SDT's external regulation construct.}
+\label{fig:heatmap}
+\end{figure}
+
+\subsection{Classification Accuracy}
+
+The test-set accuracy values from the final experimental run are reported in Table~\ref{tab:accuracy} and Fig.~\ref{fig:accuracy}, precisely matching the notebook output. With a single-model accuracy of 0.8575, XGBoost outperforms RF (0.8572) and the Ensemble (0.8569) by a small margin. The non-linearity of the attention decision boundary is empirically quantified by LR trails at 0.8272, a gap of $\Delta \approx 3\%$.
+
+\begin{table}[htbp]
+\centering
+\caption{Exact Test-Set Accuracy (Test Partition: 8,149 Students)}
+\label{tab:accuracy}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Model} & \textbf{Accuracy} & \textbf{Correct / Total} \\
+\midrule
+Logistic Regression & 0.8272 & 6,741 / 8,149 \\
+Random Forest       & 0.8572 & 6,985 / 8,149 \\
+XGBoost             & 0.8575 & 6,988 / 8,149 \\
+Final Ensemble      & 0.8569 & 6,983 / 8,149 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\columnwidth]{figs/fig2_accuracy.png}
+\caption{Model accuracy on the test set comparison. With an accuracy of 0.8575, XGBoost outperforms Random Forest and the Ensemble. Because of its linear limitation, logistic regression consistently displays a 3\% gap.}
+\label{fig:accuracy}
+\end{figure}
+
+\subsection{Comprehensive Performance Metrics}
+
+Table~\ref{tab:metrics} and Fig.~\ref{fig:metrics} expand the comparison to include five evaluation dimensions. A crucial fairness feature when predictions lead to educational interventions is that none of the models—RF, XGBoost, and Ensemble—are biased toward class prediction, as confirmed by balanced precision and recall. At any fixed false-positive rate, the LR-to-XGBoost AUC gap ($\Delta = 0.036$) corresponds to hundreds of extra correctly identified students, with XGBoost achieving the highest AUC of 0.931.
+
+\begin{table}[htbp]
+\centering
+\caption{Full Performance Metrics on Test Partition (8,149 Samples)}
+\label{tab:metrics}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Model} & \textbf{Acc} & \textbf{Prec} & \textbf{Rec}
+               & \textbf{F1} & \textbf{AUC} \\
+\midrule
+Logistic Regression & 0.827 & 0.826 & 0.827 & 0.826 & 0.895 \\
+Random Forest       & 0.857 & 0.858 & 0.857 & 0.857 & 0.928 \\
+XGBoost             & 0.858 & 0.858 & 0.858 & 0.857 & 0.931 \\
+Final Ensemble      & 0.857 & 0.857 & 0.857 & 0.857 & 0.929 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\columnwidth]{figs/fig3_metrics.png}
+\caption{Grouped bar comparison of five evaluation metrics. RF, XGBoost,
+and Ensemble perform uniformly; LR shows a consistent 3--4 point gap
+reflecting its linear limitation.}
+\label{fig:metrics}
+\end{figure}
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\columnwidth]{fig12_cross_validation[1].png}
+\caption{5-fold cross-validation results. Left: mean $\pm$ std accuracy per
+model. Right: per-fold accuracy trajectories (dashed lines = fold means).
+Low standard deviations ($\leq 0.005$) confirm stable generalisation across
+all partitions.}
+\label{fig:cv}
+\end{figure}
+Three observations from the CV analysis support the holdout findings.
+First, XGBoost's lead with a mean CV accuracy of $0.8603 \pm 0.0045$, consistent with its holdout accuracy of 0.8575, shows that the single-split result is not a favorable statistical outlier. Second, Random Forest exhibits the most stable generalization across data partitions, a desirable feature for production deployment, outperforming the other two models with the lowest variance ($0.8584 \pm 0.0035$). Third, the LR-to-XGBoost gap ($\Delta \approx 3\%$) observed in the holdout experiment ($2.9\%$--$3.9\%$) is faithfully reproduced in all five folds, ruling out any fold-specific explanation and confirming that the gap is a structural feature of the attention decision boundary. A useful confidence interval for anticipated performance when this framework is re-deployed on a fresh cohort drawn from the same OULAD population is also provided by the tight cross-validation bands.
+\subsection{Confusion Matrices and Error Analysis}
+
+Fig.~\ref{fig:cm} displays the four confusion matrices for the test set with 8,149 samples. With the highest error count and a slightly asymmetric pattern—more false negatives than false positives—LR is more likely to overlook students who are truly attentive than to falsely flag inattentive ones. False-flagging can conceal subtle disengagement signals that a more sensitive model would detect, which makes it pedagogically undesirable to miss attentive students even though it carries the risk of needless intervention burden.
+Near-symmetric error distributions are attained by RF and XGBoost, indicating better calibration.
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\columnwidth]{figs/fig8_confusion_matrices.png}
+\caption{All four classifiers' confusion matrices. False positive/negative rates are nearly symmetric for RF and XGBoost, while LR generates more false negatives, increasing the possibility of undetected disengagement.}
+\label{fig:cm}
+\end{figure}
+
+\subsection{ROC Analysis and Feature Importance}
+
+Fig.~\ref{fig:roc}It makes ROC curves for all the models. XGBoost is the best at all of the thresholds (AUC = 0.931), followed by Ensemble (0.929) and RF (0.928).
+The features are ranked by XGBoost gain in Fig. \ref{fig:importance}. The top three are \texttt{engagement\_score} (0.241), \texttt{sum\_click} (0.198), and \texttt{active\_days} (0.142). The composite \texttt{engagement\_score} outperforms each of its individual components, providing direct empirical evidence that attention operates as a multiplicative rather than an additive function of volume and consistency.
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\columnwidth]{figs/fig7_roc.png}
+\caption{ROC curves. XGBoost (AUC = 0.931) consistently outperforms all
+models; the LR-to-XGBoost AUC gap ($\Delta = 0.036$) translates to hundreds
+of additional correct identifications at fixed false-positive rates.}
+\label{fig:roc}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\columnwidth]{figs/fig4_feature_importance.png}
+\caption{XGBoost feature importance (Gain). \texttt{engagement\_score} (0.241)
+leads; the top three features account for 58.1\% of predictive power.}
+\label{fig:importance}
+\end{figure}
+
+% =============================================================================
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{Non-Linearity and the Theoretical Significance of the LR Gap}
+
+Tree-based models consistently outperform LR by three percentage points in accuracy; this is due to the multiplicative structure of the attention construct rather than a tuning artifact. Logistic regression imposes a hyperplanar decision boundary; without explicit interaction terms that must be manually specified, it is unable to differentiate between a student with the opposite profile and one with moderate clicks and very high active days. Such interaction effects are automatically detected by RF and XGBoost. It is empirically confirmed that the theoretically motivated multiplicative encoding of attention is more predictive than any linear combination of its components, as evidenced by the fact that \texttt{engagement\_score} (a product of \texttt{sum\_click} and \texttt{active\_days}) is the \textit{top-ranked feature}.
+
+\subsection{Theoretical Validation Through Feature Importance}
+
+Results on feature importance provide an a posteriori confirmation of theoretical design decisions. The SDT prediction that autonomous engagement, which is defined by both volume and consistency of self-directed activity, is the strongest behavioral indicator of true attention is supported by the dominance of \texttt{engagement\_score}. Posner's alerting hypothesis is supported by the independent contribution of \texttt{active\_days} (importance = 0.142), which states that consistent VLE presence reflects the persistent vigilance that distinguishes attentive learners. The moderate importance and negative label correlation of \texttt{submission\_delay} perfectly match SDT's external regulation construct: students who are driven primarily by deadline pressure display the hectic, delay-heavy patterns this feature encodes.
+
+\subsection{Limitations and Future Directions}
+
+The binary label reduces a continuous attentional spectrum to two categories; a multi-class or regression target would facilitate more nuanced intervention design. OULAD's single-institution origin constrains generalizability; replication across varied MOOC datasets is imperative. Our static feature set does not take advantage of the order in which interactions happen over time. Using LSTM or Transformer architectures on the raw \texttt{studentVle} time-series may find more predictive signals.
+
+% =============================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+This study provides a theoretically and empirically validated AI-driven framework for predicting learner attention in online education. Based on 32,593 OULAD student records, ten interpretable behavioral features—including four composite indices—were employed to model attention as a dual-threshold construct, guided by Deci and Ryan's Self-Determination Theory and Posner's neurocognitive attention model.
+
+XGBoost performed the best (accuracy = 0.8575, AUC = 0.931), but the Majority-Voting Ensemble showed comparable accuracy (0.8569) with stronger deployment robustness. The consistent underperformance of Logistic Regression ($\Delta \approx 3\%$) confirmed the non-linear nature of attention signals. According to SDT, the most reliable attentional signal in LMS logs is sustained autonomous engagement. Feature importance analysis revealed that the composite \texttt{engagement\_score} was the best predictor, outperforming its individual components.
+The framework is helpful and comprehensible because features can be computed from standard LMS logs, predictions can still be explained, and the tiered roadmap permits graduated interventions. Future work will include live-LMS validation, multi-class targets, sequential deep learning models, and fairness auditing.
+% =============================================================================
+\begin{thebibliography}{99}
+
+\bibitem{ref_attention_theory}
+M.~I.~Posner and S.~E.~Petersen, ``The attention system of the human brain,''
+\textit{Annual Review of Neuroscience}, vol.~13, pp.~25--42, 1990.
+
+\bibitem{ref_sdt}
+E.~L.~Deci and R.~M.~Ryan, ``The `what' and `why' of goal pursuits: Human
+needs and the self-determination of behavior,''
+\textit{Psychological Inquiry}, vol.~11, no.~4, pp.~227--268, 2000.
+
+\bibitem{ref_sdt_edtech}
+S.~D.~Teasley, ``Student facing dashboards: One size fits all?''
+\textit{Technology, Knowledge and Learning}, vol.~24, no.~3,
+pp.~377--392, 2019.
+
+\bibitem{ref_mooc_dropout}
+R.~F.~Kizilcec, C.~Piech, and E.~Schneider,
+``Deconstructing disengagement: Analyzing learner subpopulations in massive
+open online courses,'' in \textit{Proc. 3rd Int. Conf. Learning Analytics
+and Knowledge (LAK)}, 2013, pp.~170--179.
+
+\bibitem{ref_knowledge_tracing}
+A.~T.~Corbett and J.~R.~Anderson, ``Knowledge tracing: Modeling the
+acquisition of procedural knowledge,'' \textit{User Modeling and
+User-Adapted Interaction}, vol.~4, no.~4, pp.~253--278, 1994.
+
+\bibitem{ref_engage_def}
+J.~A.~Fredricks, P.~C.~Blumenfeld, and A.~H.~Paris, ``School engagement:
+Potential of the concept, state of the evidence,''
+\textit{Review of Educational Research}, vol.~73, no.~1, pp.~59--109, 2004.
+
+\bibitem{ref_oulad}
+J.~Kuzilek, M.~Hlosta, and Z.~Zdrahal, ``Open University Learning Analytics
+Dataset,'' \textit{Scientific Data}, vol.~4, p.~170171, 2017.
+
+\bibitem{ref_la_survey}
+R.~Ferguson, ``Learning analytics: Drivers, developments and challenges,''
+\textit{Int. J. Technology Enhanced Learning}, vol.~4, no.~5/6,
+pp.~304--317, 2012.
+
+\bibitem{ref_baker_yacef}
+R.~S.~Baker and K.~Yacef, ``The state of educational data mining in 2009:
+A review and future visions,'' \textit{J. Educational Data Mining},
+vol.~1, no.~1, pp.~3--17, 2009.
+
+\bibitem{ref_gaze}
+M.~X.~Huang, J.~Li, G.~Ngai, H.~V.~Leong, and A.~Bulling,
+``Moment-to-moment emotions and disposition: Predicting student learning with
+automatic gaze analysis,'' in \textit{Proc. CHI}, 2019, pp.~1--12.
+
+\bibitem{ref_lms_attention}
+A.~F.~Agudo-Peregrina, S.~Iglesias-Pradas, M.~A.~Conde-Gonz\'{a}lez,
+and A.~Hern\'{a}ndez-Garc\'{i}a, ``Can we predict success from log data in
+VLEs? Classification of interactions for learning analytics and their
+relation with performance in VLE-supported F2F and online learning,''
+\textit{Computers in Human Behavior}, vol.~31, pp.~542--550, 2014.
+
+\bibitem{ref_kotsiantis}
+S.~Kotsiantis, C.~Pierrakeas, and P.~Pintelas, ``Predicting students'
+performance in distance learning using machine learning techniques,''
+\textit{Applied Artificial Intelligence}, vol.~18, no.~5, pp.~411--426,
+2004.
+
+\bibitem{ref_gbm}
+J.~H.~Friedman, ``Greedy function approximation: A gradient boosting machine,''
+\textit{Annals of Statistics}, vol.~29, no.~5, pp.~1189--1232, 2001.
+
+\bibitem{ref_xgboost}
+T.~Chen and C.~Guestrin, ``XGBoost: A scalable tree boosting system,''
+in \textit{Proc. 22nd ACM SIGKDD Int. Conf. Knowledge Discovery and Data
+Mining}, 2016, pp.~785--794.
+
+\bibitem{ref_lr_education}
+D.~Delen, K.~Topuz, and E.~Eryarsoy, ``Development of a Bayesian Belief
+Network-based DSS for predicting and understanding freshmen student attrition,''
+\textit{European J. Operational Research}, vol.~281, no.~3, pp.~575--587, 2020.
+
+\bibitem{ref_ensemble}
+L.~I.~Kuncheva, \textit{Combining Pattern Classifiers: Methods and Algorithms}.
+Hoboken, NJ: Wiley, 2004.
+
+\bibitem{ref_deep_la}
+C.~Piech, J.~Spencer, J.~Huang, S.~Ganguli, M.~Sahami, L.~Guibas,
+and J.~Koller, ``Deep knowledge tracing,'' in \textit{Advances in Neural
+Information Processing Systems (NeurIPS)}, 2015, pp.~505--513.
+
+\bibitem{ref_alert_fatigue}
+K.~E.~Arnold and M.~D.~Pistilli, ``Course signals at Purdue: Using learning
+analytics to increase student success,'' in \textit{Proc. 2nd Int. Conf.
+Learning Analytics and Knowledge (LAK)}, 2012, pp.~267--270.
+
+
+
+\end{thebibliography}
+
+\end{document}
+
