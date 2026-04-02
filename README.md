@@ -1,0 +1,2 @@
+# An-AI-Based-Attention-Prediction-Framework-for-Online-Learning-Environments
+Learning outcomes are strongly influenced by student attentiveness, yet in online learning environments, instructors often lack direct visibility into whether students are genuinely focused. To address this limitation, interaction data from digital learning platforms can be leveraged as a reliable indicator of cognitive engagement.
